@@ -1,0 +1,57 @@
+%option lang = "C++"
+
+%decls %{
+    #include <iostream>
+    #include <string>
+
+    using stdstring = std::string;
+%}
+
+%{
+    #include "Ast.hpp"
+%}
+
+%node AstNode %abstract %typedef
+%node Expr AstNode %abstract
+
+%node BinaryExpr Expr %abstract ={
+    Expr *left;
+    Expr *right;
+}
+
+%node AddExpr BinaryExpr
+%node SubExpr BinaryExpr
+%node MultExpr BinaryExpr
+%node DivExpr BinaryExpr
+%node ModExpr BinaryExpr
+
+%node NumberExpr Expr = {
+    long value;
+}
+
+%node IdentifierExpr Expr = {
+    std::string name;
+}
+
+%operation %virtual stdstring toString(AstNode *this)
+%operation %virtual long evaluate (AstNode *this)
+
+toString(AddExpr){
+    return left->toString() + " + " + right->toString();
+}
+
+toString(SubExpr){
+    return left->toString() + " - " + right->toString();
+}
+
+toString(MultExpr){
+    return left->toString() + " * " + right->toString();
+}
+
+toString(DivExpr){
+    return left->toString() + " / " + right->toString();
+}
+
+toString(ModExpr){
+    return left->toString() + " % " + right->toString();
+}
