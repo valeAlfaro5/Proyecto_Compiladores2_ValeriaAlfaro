@@ -3,55 +3,470 @@
 %decls %{
     #include <iostream>
     #include <string>
+    #include <vector>
+    #include <utility>
+    #include <unordered_map>
 
     using stdstring = std::string;
+    using symbols = std::unordered_map<stdstring, long>
+
+    //no acepta vectores dentro de los nodos
+    //se declaran antes
+    typedef std::vector<Declare*> DeclareList;
+    typedef std::vector<Stmt*> StmtList;
+    typedef std::vector<Param*> ParamVector;
+    typedef std::vector<Expr*> ExprVector;
+
+    //vector con operador y siguiente expresion
+    typedef std::vector<std::pair<std::string, LogicalAnd*>> OrList;
+    typedef std::vector<std::pair<std::string, Equality*>> AndList;
+    typedef std::vector<std::pair<std::string, Comparison*>> EqualityList;
+    typedef std::vector<std::pair<std::string, Term*>> ComparisonList;
+    typedef std::vector<std::pair<std::string, Factor*>> TermList;
+    typedef std::vector<std::pair<std::string, Unary*>> FactorList;
+
 %}
 
 %{
     #include "Ast.hpp"
 %}
 
+//principales
 %node AstNode %abstract %typedef
-%node Expr AstNode %abstract
+%node Stmt AstNode %abstract
+%node Declare AstNode %abstract
+%node Expr AstNode %abstract 
 
-%node BinaryExpr Expr %abstract ={
-    Expr *left;
-    Expr *right;
+//program es un vector de declaraciones
+%node Program AstNode %abstract ={
+    DeclareList declare;
 }
 
-%node AddExpr BinaryExpr
-%node SubExpr BinaryExpr
-%node MultExpr BinaryExpr
-%node DivExpr BinaryExpr
-%node ModExpr BinaryExpr
+%node VarDecl Declare %abstract ={
+    IdentifierExpr* ident;
+    Expr* express ;
+}
+
+%node FuncDecl Declare %abstract ={
+    IdentifierExpr* ident;
+    ParamList* param;
+    stdstring type;
+    Block* block;
+}
+
+%node ParamList Declare %abstract ={
+    ParamVector params;
+}
+
+%node Param Declare %abstract ={
+    stdstring* ref  ;
+    IdentifierExpr* ident;
+}
+
+//empiezan los statements
+%node AssignStmt Stmt %abstract={
+    IdentifierExpr* ident;
+    Expr* express;
+}
+
+%node IfStmt Stmt %abstract={
+    Expr* express; 
+    Stmt* TrueStmt;
+    Stmt* FalseStmt  ;
+}
+
+%node WhileStmt Stmt %abstract={
+    Expr* express;
+    Stmt* state;
+}
+
+%node PrintStmt Stmt %abstract={
+    Expr* express;
+}
+
+%node ReturnStmt Stmt %abstract={
+    Expr* express ;
+}
+
+%node ExprStmt Stmt %abstract={
+    FuncCall* func;
+}
+
+%node Block Stmt %abstract={
+    StmtList stmt;
+}
+
+//empiezan los expressions
+%node LogicalOr Expr %abstract={
+    LogicalAnd* first;
+    OrList rest; //||
+}
+
+%node LogicalAnd Expr %abstract={
+    Equality* equal;
+    AndList rest; //&&
+}
+
+%node Equality Expr %abstract ={
+    Comparison* compare;
+    EqualityList rest; // == | !=
+}
+
+%node Comparison Expr %abstract={ 
+    Term* term;
+    ComparisonList rest; //>, < , <= , >=
+}
+
+%node Term Expr %abstract={
+    Factor* fact;
+    TermList rest; //+ , -
+}
+
+%node Factor Expr %abstract={
+    Unary* unar;
+    FactorList rest;  // *, /, %
+}
+
+%node Unary Expr %abstract={
+    stdstring op; // ! | - 
+    Unary* childUnary  ; 
+    Primary* childPrimary  ;
+}
+
+%node Primary Expr %abstract={
+    NumberExpr* num  ;
+    IdentifierExpr* ident  ;
+    FuncCall* func  ;
+    ParenExpr* paren ;
+}
+
+%node ParenExpr Expr %abstract ={
+    Expr* expr;
+}
+
+%node FuncCall Expr %abstract ={
+    IdentifierExpr* ident;
+    ArgList* arg  ;
+}
+
+%node ArgList Expr %abstract = {
+    ExprVector args; 
+}
 
 %node NumberExpr Expr = {
     long value;
 }
 
 %node IdentifierExpr Expr = {
-    std::string name;
+    stdstring name;
 }
 
 %operation %virtual stdstring toString(AstNode *this)
-%operation %virtual long evaluate (AstNode *this)
+%operation %virtual long evaluate (Expr *this)
 
-toString(AddExpr){
-    return left->toString() + " + " + right->toString();
+//empiezan los toStrings
+toString(Program){
+    std::string result;
+
+    for (auto d : declare){
+        result += d->toString() + "\n";
+    }
+    return result;
 }
 
-toString(SubExpr){
-    return left->toString() + " - " + right->toString();
+toString(VarDecl){
+    if(express){
+        return "int " + ident->toString() + " = " + express->toString() + ";";
+    }else{
+         return "int " + ident->toString() + ";";
+    }
 }
 
-toString(MultExpr){
-    return left->toString() + " * " + right->toString();
+toString(FuncDecl){
+    std::string result = "def "  + ident->toString() +"(";
+
+    if(param){
+        result+= param->toString() ;
+    }
+
+    result += ") -> " + type + " " + block->toString();
+    return result;
 }
 
-toString(DivExpr){
-    return left->toString() + " / " + right->toString();
+toString(ParamList){
+    std::string result;
+    
+    for (auto it = params.begin(); it != params.end(); ++it) {
+        result += (*it)->toString();
+
+        if (std::next(it) != params.end()) {
+            result += ", ";
+        }
+    }
+    return result;
 }
 
-toString(ModExpr){
-    return left->toString() + " % " + right->toString();
+toString(Param){
+    std::string result= "int ";
+
+    if(ref){
+       result += *ref + " ";
+    }
+    result += ident->toString();
+    return result;
+}
+
+toString(AssignStmt){
+    return ident->toString() + " = " + express->toString() +";";
+}
+
+toString(IfStmt){
+    std::string state = "if (" + express->toString() +")" + TrueStmt->toString();
+    
+    if(FalseStmt){
+        state += " else " + FalseStmt->toString();
+    }
+
+    return state;
+}
+
+toString(WhileStmt){
+    return "while ( " + express->toString() + ") " + state->toString();
+}
+
+toString(PrintStmt){
+    return "print ( " + express->toString() + ");" ;
+}
+
+toString(ReturnStmt){
+    if(express){
+        return "return " + express->toString() + ";";
+    }else{
+        return "return;";
+    }
+}
+
+toString(ExprStmt){
+    return func->toString() + ";";
+}
+
+toString(Block){
+    std::string result = "{\n" ;
+    for (auto d : stmt){
+        result += d->toString() + "\n";
+    }
+    result += "}"
+    return result;
+}
+
+toString(LogicalOr){
+    std::string result = first->toString();
+    for (auto &p : rest) {
+        result += " || " + p.second->toString(); 
+    }
+    return result;
+}
+
+toString(LogicalAnd){
+    std::string result = equal->toString();
+    for (auto &p : rest) {
+        result += " && " + p.second->toString(); 
+    }
+    return result;
+}
+
+toString(Equality){
+    std::string result = compare->toString();
+    
+    for (auto &p : rest) {
+        result += p.first + " " + p.second->toString(); 
+    }
+    
+    return result;
+}
+
+toString(Comparison){
+    std::string result = term->toString();
+    for (auto &p : rest) {
+        result += p.first + " " + p.second->toString(); 
+    }
+    return result;
+}
+
+toString(Term){
+    std::string result = fact->toString();
+    for (auto &p : rest) {
+        result += p.first + " " + p.second->toString(); 
+    }
+    return result;
+}
+
+toString(Factor){
+    std::string result = unar->toString();
+    for (auto &p : rest) {
+        result += p.first + " " + p.second->toString(); 
+    }
+    return result;
+}
+
+toString(Unary){
+    std::string result;
+
+    if(childPrimary){
+        result += childPrimary->toString();
+    }else if (childUnary){
+        result += op + childUnary->toString();
+    }
+    
+    return result;
+}
+
+toString(FuncCall){
+    std::string result = ident->toString() + "(" ;
+    if(arg) result += arg->toString();
+    result += ")";
+    return result;
+}
+
+toString(ArgList){
+    std::string result;
+    
+    for (auto it = args.begin(); it != args.end(); ++it) {
+        result += (*it)->toString();
+
+        if (std::next(it) != args.end()) {
+            result += ", ";
+        }
+    }
+    return result;
+}
+
+toString(NumberExpr){
+    return "Number: " + value;
+}
+
+toString(IdentifierExpr){
+    return "Identifier: " + name;
+}
+
+//empiezan los evaluates
+evaluate(IdentifierExpr){
+    return 0;
+}
+
+evaluate(NumberExpr){
+    return value;
+}
+
+evaluate(LogicalOr){
+    long result = first->evaluate();
+
+    for (auto &p : rest) {
+        long right = p.second->evaluate();
+        result = result || right;
+    }
+
+    return result;
+}
+
+evaluate(LogicalAnd){
+    long result = equal->evaluate();
+
+    for (auto &p : rest) {
+        long right = p.second->evaluate();
+        result = result && right;
+    }
+
+    return result;
+}
+
+evaluate(Equality){
+    long result = compare->evaluate();
+
+    for (auto &p : rest) {
+        long right = p.second->evaluate();
+        if(p.first == "=="){
+            result = result == right;
+        }else if (p.first == "!="){
+            result = result != right;
+        }
+    }
+
+    return result;
+}
+
+evaluate(Comparison){
+    long result = term->evaluate();
+
+    for (auto &p : rest) {
+        long right = p.second->evaluate();
+        if(p.first == "<"){
+            result = result < right;
+        }else if (p.first == "<="){
+            result = result <= right;
+        }else if (p.first == ">"){
+            result = result > right;
+        }else if (p.first == ">="){
+            result = result >= right;
+        }
+    }
+
+    return result;
+}
+
+evaluate(Term){
+    long result = fact->evaluate();
+
+    for (auto &p : rest) {
+        long right = p.second->evaluate();
+        if(p.first == "+"){
+            result = result + right;
+        }else if (p.first == "-"){
+            result = result - right;
+        }
+    }
+
+    return result;
+}
+
+evaluate(Factor){
+    long result = unar->evaluate();
+
+    for (auto &p : rest) {
+        long right = p.second->evaluate();
+        if(p.first == "*"){
+            result = result * right;
+        }else if (p.first == "/"){
+            result = result / right;
+        }else if (p.first == "%"){
+            result = result% right;
+        }
+    }
+    return result;
+}
+
+evaluate(Unary){
+    if(childPrimary){
+        return childPrimary->evaluate();
+    }
+
+    long value = childUnary->evaluate();
+
+    if(op == "!"){
+        return !value;
+    }
+    else if(op == "-"){
+        return -value;
+    }
+
+    return value;
+}
+
+evaluate(Primary){
+    if(num) return num->evaluate();
+    if(ident) return ident->evaluate();
+    if(func) return func->evaluate();
+    if(paren) return paren->evaluate();
+
+    return 0;
 }

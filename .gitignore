@@ -39,3 +39,11 @@
 
 # debug information files
 *.dwo
+
+#archivos generados
+Lexer.hpp
+Lexer.cpp
+Parser.hpp
+Parser.cpp
+Ast.hpp
+Ast.cpp
