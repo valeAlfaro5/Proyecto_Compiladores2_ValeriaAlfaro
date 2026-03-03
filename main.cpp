@@ -18,18 +18,17 @@ int main(int argc, char* argv[]) {
         return 1;
     } 
 
-    Expr::SampleLexer my_lexer(&inputFile);
+    Proyect::ProyectoLexer my_lexer(&inputFile);
     AstNode* root = nullptr;
-    Expr::Parser my_parser(my_lexer, root);
+    Proyect::Parser my_parser(my_lexer, root);
 
     try{
         my_parser();
         if (root) {
-             std::cout << "AST: " << root->toString() << std::endl;
-            std::cout << "Resultado: " << root->evaluate() << std::endl;
+            std::cout << "De txt a AST: " << root->toString() << std::endl;
         }
         std::cout<<"Syntax correct\n";
-    }catch(const Expr::Parser::syntax_error& e){
+    }catch(const Proyect::Parser::syntax_error& e){
         std::cerr << "Error de sintaxis: " << e.what() << "\n";
     }
 

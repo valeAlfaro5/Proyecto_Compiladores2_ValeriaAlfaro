@@ -8,22 +8,18 @@
     #include <unordered_map>
 
     using stdstring = std::string;
-    using symbols = std::unordered_map<stdstring, long>
+    using symbols = std::unordered_map<stdstring, long>;
 
     //no acepta vectores dentro de los nodos
     //se declaran antes
-    typedef std::vector<Declare*> DeclareList;
-    typedef std::vector<Stmt*> StmtList;
-    typedef std::vector<Param*> ParamVector;
-    typedef std::vector<Expr*> ExprVector;
+    class AstNode;
+    typedef std::vector<AstNode*> DeclareList;
+    typedef std::vector<AstNode*> StmtList;
+    typedef std::vector<AstNode*> ParamVector;
+    typedef std::vector<AstNode*> ExprVector;
 
     //vector con operador y siguiente expresion
-    typedef std::vector<std::pair<std::string, LogicalAnd*>> OrList;
-    typedef std::vector<std::pair<std::string, Equality*>> AndList;
-    typedef std::vector<std::pair<std::string, Comparison*>> EqualityList;
-    typedef std::vector<std::pair<std::string, Term*>> ComparisonList;
-    typedef std::vector<std::pair<std::string, Factor*>> TermList;
-    typedef std::vector<std::pair<std::string, Unary*>> FactorList;
+    typedef std::vector<std::pair<std::string, AstNode*>> Rest;
 
 %}
 
@@ -32,125 +28,128 @@
 %}
 
 //principales
-%node AstNode %abstract %typedef
+%node AstNode %abstract %typedef={
+    %nocreate int line = {0};
+    %nocreate int column = {0};
+}
 %node Stmt AstNode %abstract
 %node Declare AstNode %abstract
 %node Expr AstNode %abstract 
 
 //program es un vector de declaraciones
-%node Program AstNode %abstract ={
+%node Program AstNode ={
     DeclareList declare;
 }
 
-%node VarDecl Declare %abstract ={
-    IdentifierExpr* ident;
-    Expr* express ;
+%node VarDecl Declare  ={
+    AstNode* ident;
+    AstNode* express ;
 }
 
-%node FuncDecl Declare %abstract ={
-    IdentifierExpr* ident;
-    ParamList* param;
+%node FuncDecl Declare ={
+    AstNode* ident;
+    AstNode* param;
     stdstring type;
-    Block* block;
+    AstNode* block;
 }
 
-%node ParamList Declare %abstract ={
+%node ParamList Declare  ={
     ParamVector params;
 }
 
-%node Param Declare %abstract ={
-    stdstring* ref  ;
-    IdentifierExpr* ident;
+%node Param Declare  ={
+    stdstring ref  ;
+    AstNode* ident;
 }
 
 //empiezan los statements
-%node AssignStmt Stmt %abstract={
-    IdentifierExpr* ident;
-    Expr* express;
+%node AssignStmt Stmt ={
+    AstNode* ident;
+    AstNode* express;
 }
 
-%node IfStmt Stmt %abstract={
-    Expr* express; 
-    Stmt* TrueStmt;
-    Stmt* FalseStmt  ;
+%node IfStmt Stmt ={
+    AstNode* express; 
+    AstNode* TrueStmt;
+    AstNode* FalseStmt  ;
 }
 
-%node WhileStmt Stmt %abstract={
-    Expr* express;
-    Stmt* state;
+%node WhileStmt Stmt ={
+    AstNode* express;
+    AstNode* state;
 }
 
-%node PrintStmt Stmt %abstract={
-    Expr* express;
+%node PrintStmt Stmt ={
+    AstNode* express;
 }
 
-%node ReturnStmt Stmt %abstract={
-    Expr* express ;
+%node ReturnStmt Stmt ={
+    AstNode* express ;
 }
 
-%node ExprStmt Stmt %abstract={
-    FuncCall* func;
+%node ExprStmt Stmt ={
+    AstNode* func;
 }
 
-%node Block Stmt %abstract={
+%node Block Stmt ={
     StmtList stmt;
 }
 
 //empiezan los expressions
-%node LogicalOr Expr %abstract={
-    LogicalAnd* first;
-    OrList rest; //||
+%node LogicalOr Expr ={
+    AstNode* first;
+    Rest rest; //||
 }
 
-%node LogicalAnd Expr %abstract={
-    Equality* equal;
-    AndList rest; //&&
+%node LogicalAnd Expr ={
+    AstNode* equal;
+    Rest rest; //&&
 }
 
-%node Equality Expr %abstract ={
-    Comparison* compare;
-    EqualityList rest; // == | !=
+%node Equality Expr ={
+    AstNode* compare;
+    Rest rest; // == | !=
 }
 
-%node Comparison Expr %abstract={ 
-    Term* term;
-    ComparisonList rest; //>, < , <= , >=
+%node Comparison Expr={ 
+    AstNode* term;
+    Rest rest; //>, < , <= , >=
 }
 
-%node Term Expr %abstract={
-    Factor* fact;
-    TermList rest; //+ , -
+%node Term Expr ={
+    AstNode* fact;
+    Rest rest; //+ , -
 }
 
-%node Factor Expr %abstract={
-    Unary* unar;
-    FactorList rest;  // *, /, %
+%node Factor Expr ={
+    AstNode* unar;
+    Rest rest;  // *, /, %
 }
 
-%node Unary Expr %abstract={
+%node Unary Expr ={
     stdstring op; // ! | - 
-    Unary* childUnary  ; 
-    Primary* childPrimary  ;
+    AstNode* childUnary  ; 
+    AstNode* childPrimary  ;
 }
 
-%node Primary Expr %abstract={
-    NumberExpr* num  ;
-    IdentifierExpr* ident  ;
-    FuncCall* func  ;
-    ParenExpr* paren ;
+%node Primary Expr ={
+    AstNode* num  ;
+    AstNode* ident  ;
+    AstNode* func  ;
+    AstNode* paren ;
 }
 
-%node ParenExpr Expr %abstract ={
-    Expr* expr;
+%node ParenExpr Expr ={
+    AstNode* expr;
 }
 
-%node FuncCall Expr %abstract ={
-    IdentifierExpr* ident;
-    ArgList* arg  ;
+%node FuncCall Expr  ={
+    AstNode* ident;
+    AstNode* arg  ;
 }
 
-%node ArgList Expr %abstract = {
-    ExprVector args; 
+%node ArgList Expr = {
+    ExprVector arg; 
 }
 
 %node NumberExpr Expr = {
@@ -162,7 +161,6 @@
 }
 
 %operation %virtual stdstring toString(AstNode *this)
-%operation %virtual long evaluate (Expr *this)
 
 //empiezan los toStrings
 toString(Program){
@@ -209,8 +207,8 @@ toString(ParamList){
 toString(Param){
     std::string result= "int ";
 
-    if(ref){
-       result += *ref + " ";
+    if(!ref.empty()){
+       result += ref + " ";
     }
     result += ident->toString();
     return result;
@@ -255,7 +253,7 @@ toString(Block){
     for (auto d : stmt){
         result += d->toString() + "\n";
     }
-    result += "}"
+    result += "}";
     return result;
 }
 
@@ -342,131 +340,20 @@ toString(ArgList){
 }
 
 toString(NumberExpr){
-    return "Number: " + value;
+    return "Number: " + std::to_string(value);
 }
 
 toString(IdentifierExpr){
     return "Identifier: " + name;
 }
 
-//empiezan los evaluates
-evaluate(IdentifierExpr){
-    return 0;
+toString(Primary){
+    if(num) return num->toString();
+    if(ident) return ident->toString();
+    if(func) return func->toString();
+    if(paren) return paren->toString();
 }
 
-evaluate(NumberExpr){
-    return value;
-}
-
-evaluate(LogicalOr){
-    long result = first->evaluate();
-
-    for (auto &p : rest) {
-        long right = p.second->evaluate();
-        result = result || right;
-    }
-
-    return result;
-}
-
-evaluate(LogicalAnd){
-    long result = equal->evaluate();
-
-    for (auto &p : rest) {
-        long right = p.second->evaluate();
-        result = result && right;
-    }
-
-    return result;
-}
-
-evaluate(Equality){
-    long result = compare->evaluate();
-
-    for (auto &p : rest) {
-        long right = p.second->evaluate();
-        if(p.first == "=="){
-            result = result == right;
-        }else if (p.first == "!="){
-            result = result != right;
-        }
-    }
-
-    return result;
-}
-
-evaluate(Comparison){
-    long result = term->evaluate();
-
-    for (auto &p : rest) {
-        long right = p.second->evaluate();
-        if(p.first == "<"){
-            result = result < right;
-        }else if (p.first == "<="){
-            result = result <= right;
-        }else if (p.first == ">"){
-            result = result > right;
-        }else if (p.first == ">="){
-            result = result >= right;
-        }
-    }
-
-    return result;
-}
-
-evaluate(Term){
-    long result = fact->evaluate();
-
-    for (auto &p : rest) {
-        long right = p.second->evaluate();
-        if(p.first == "+"){
-            result = result + right;
-        }else if (p.first == "-"){
-            result = result - right;
-        }
-    }
-
-    return result;
-}
-
-evaluate(Factor){
-    long result = unar->evaluate();
-
-    for (auto &p : rest) {
-        long right = p.second->evaluate();
-        if(p.first == "*"){
-            result = result * right;
-        }else if (p.first == "/"){
-            result = result / right;
-        }else if (p.first == "%"){
-            result = result% right;
-        }
-    }
-    return result;
-}
-
-evaluate(Unary){
-    if(childPrimary){
-        return childPrimary->evaluate();
-    }
-
-    long value = childUnary->evaluate();
-
-    if(op == "!"){
-        return !value;
-    }
-    else if(op == "-"){
-        return -value;
-    }
-
-    return value;
-}
-
-evaluate(Primary){
-    if(num) return num->evaluate();
-    if(ident) return ident->evaluate();
-    if(func) return func->evaluate();
-    if(paren) return paren->evaluate();
-
-    return 0;
+toString(ParenExpr){
+    return "(" + expr->toString() +")";
 }

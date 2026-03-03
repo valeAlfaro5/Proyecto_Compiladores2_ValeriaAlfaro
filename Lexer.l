@@ -1,8 +1,8 @@
-%option lexer = "SampleLexer"
+%option lexer = "ProyectoLexer"
 %option lex = "nextToken"
-%option namespace = "Expr"
+%option namespace = "Proyect"
 %option bison-cc
-%option bison-cc-namespace = "Expr"
+%option bison-cc-namespace = "Proyect"
 %option bison-cc-parser = "Parser"
 
 %top{
@@ -10,7 +10,7 @@
 }
 
 %class{
-        using Token = Expr::Parser::token;
+        using Token = Proyect::Parser::token;
 }
 
 %%
@@ -36,7 +36,7 @@
 ","     { return Token::COMMA; }
 "{"     { return Token::LEFT_BRACKET; }
 "}"     { return Token::RIGHT_BRACKET; }
-//.*    { return Token::COMMENT; }
+\/\/.*  ;//ignorar comentarios  
 "int"   { return Token::INT_KEY; }
 "void"  { return Token::VOID_KEY; }
 "if"    { return Token::IF_KEY; }
