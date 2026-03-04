@@ -48,4 +48,4 @@ Parser.cpp
 Ast.hpp
 Ast.cpp
 build/
-/cmake
+cmake/

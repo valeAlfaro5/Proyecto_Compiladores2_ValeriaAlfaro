@@ -13,10 +13,8 @@
     //no acepta vectores dentro de los nodos
     //se declaran antes
     class AstNode;
-    typedef std::vector<AstNode*> DeclareList;
-    typedef std::vector<AstNode*> StmtList;
-    typedef std::vector<AstNode*> ParamVector;
-    typedef std::vector<AstNode*> ExprVector;
+    //vector donde se acumulan todo
+    typedef std::vector<AstNode*> List;
 
     //vector con operador y siguiente expresion
     typedef std::vector<std::pair<std::string, AstNode*>> Rest;
@@ -38,7 +36,7 @@
 
 //program es un vector de declaraciones
 %node Program AstNode ={
-    DeclareList declare;
+    List declare;
 }
 
 %node VarDecl Declare  ={
@@ -54,7 +52,7 @@
 }
 
 %node ParamList Declare  ={
-    ParamVector params;
+    List params;
 }
 
 %node Param Declare  ={
@@ -92,7 +90,7 @@
 }
 
 %node Block Stmt ={
-    StmtList stmt;
+    List stmt;
 }
 
 //empiezan los expressions
@@ -149,7 +147,7 @@
 }
 
 %node ArgList Expr = {
-    ExprVector arg; 
+    List arg; 
 }
 
 %node NumberExpr Expr = {
@@ -219,21 +217,21 @@ toString(AssignStmt){
 }
 
 toString(IfStmt){
-    std::string state = "if (" + express->toString() +")" + TrueStmt->toString();
+    std::string state = "if (" + express->toString() +")" + "\t"+TrueStmt->toString();
     
     if(FalseStmt){
-        state += " else " + FalseStmt->toString();
+        state += "\n else \t"+FalseStmt->toString();
     }
 
     return state;
 }
 
 toString(WhileStmt){
-    return "while ( " + express->toString() + ") " + state->toString();
+    return "while ( " + express->toString() + " ) " + state->toString();
 }
 
 toString(PrintStmt){
-    return "print ( " + express->toString() + ");" ;
+    return "print ( " + express->toString() + " );" ;
 }
 
 toString(ReturnStmt){
@@ -251,7 +249,7 @@ toString(ExprStmt){
 toString(Block){
     std::string result = "{\n" ;
     for (auto d : stmt){
-        result += d->toString() + "\n";
+        result += "\t"+d->toString() + "\n";
     }
     result += "}";
     return result;
@@ -329,10 +327,10 @@ toString(FuncCall){
 toString(ArgList){
     std::string result;
     
-    for (auto it = args.begin(); it != args.end(); ++it) {
+    for (auto it = arg.begin(); it != arg.end(); ++it) {
         result += (*it)->toString();
 
-        if (std::next(it) != args.end()) {
+        if (std::next(it) != arg.end()) {
             result += ", ";
         }
     }
@@ -340,11 +338,11 @@ toString(ArgList){
 }
 
 toString(NumberExpr){
-    return "Number: " + std::to_string(value);
+    return  std::to_string(value);
 }
 
 toString(IdentifierExpr){
-    return "Identifier: " + name;
+    return  name;
 }
 
 toString(Primary){

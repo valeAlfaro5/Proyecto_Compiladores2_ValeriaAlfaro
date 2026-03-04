@@ -1,0 +1,33 @@
+int x;
+int y = 10;
+
+def suma(int a, int b) -> int {
+    int resultado;
+    resultado = a + b;
+    return resultado;
+}
+
+def incrementar(int ref n) -> void {
+    n = n + 1;
+    return;
+}
+
+def main() -> int {
+    int z;
+    z = suma(3, 4);
+
+    if (z > 5) {
+        print(z);
+    } else {
+        print(0);
+    }
+
+    while (z < 10) {
+        z = z + 1;
+    }
+
+    incrementar(z);
+
+    return z;
+}
+

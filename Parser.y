@@ -14,9 +14,7 @@
 %nterm <AstNode*> program
 %type <AstNode*> expr logicalOr logicalAnd equality comparison term factor unary primary funcCall argList   
 %type <AstNode*> statement assignment ifStmt whileStmt printStmt returnStmt exprStmt block
-%type <StmtList>  statementList
-%type <DeclareList> declare_list
-%type <ParamVector> paramList
+%type <List>  statementList declare_list paramList
 %type <AstNode*> declaration varDecl funcDecl param optionParam
 %type <std::string> returnType eq com arith arith1 logic
 
@@ -59,20 +57,20 @@ namespace Proyect{
 %%
 
 program: declare_list {root = new Program($1);};
-declare_list: { $$ = DeclareList(); } |  declare_list declaration {  $1->push_back($2); $$ = $1; };
-declaration: varDecl {$$ = DeclareList();}| funcDecl {$$ = $1;};
+declare_list: { $$ = List(); } |  declare_list declaration {  $1.push_back($2); $$ = $1; };
+declaration: varDecl {$$ = $1;}| funcDecl {$$ = $1;};
 varDecl: INT_KEY IDENTIFIER SEMICOLON {$$ = new VarDecl(new IdentifierExpr($2), nullptr);}| 
          INT_KEY IDENTIFIER ASSIGN expr SEMICOLON
          { $$ = new VarDecl(new IdentifierExpr($2), $4);};
 funcDecl: DEF_KEY IDENTIFIER OPEN_PAR optionParam CLOSE_PAR ARROW returnType block
-        {$$ = new FuncDecl(new IdentifierExpr($2), $4, $7, $8) };
+        {$$ = new FuncDecl(new IdentifierExpr($2), $4, $7, $8); };
 optionParam: {$$ = nullptr ;} | paramList {$$ = new ParamList($1) ;}
 returnType: INT_KEY {$$ = $1 ;}| VOID_KEY{$$ = $1 ;};
-paramList: param { $$ = ParamVector();  $$.push_back($1); }| paramList COMMA param { $1->push_back($3); $$ = $1; };
+paramList: param { $$ = List();  $$.push_back($1); }| paramList COMMA param { $1.push_back($3); $$ = $1; };
 param: INT_KEY IDENTIFIER {$$ = new Param("",new IdentifierExpr($2));}| 
         INT_KEY REF_KEY IDENTIFIER {$$ = new Param("ref", new IdentifierExpr($3));};
 
-statementList: {$$ = StmtList() ;}| statementList statement { $1->push_back($2); $$ = $1; };
+statementList: {$$ = List() ;}| statementList statement { $1.push_back($2); $$ = $1; };
 statement: varDecl{$$ = $1 ;} | assignment {$$ = $1 ;}| ifStmt {$$ = $1 ;}| whileStmt {$$ = $1 ;}| printStmt {$$ = $1 ;}| returnStmt{$$ = $1 ;}| exprStmt{$$ = $1 ;}| block{$$ = $1 ;};
 assignment: IDENTIFIER ASSIGN expr SEMICOLON {$$ = new AssignStmt(new IdentifierExpr($1), $3) ;};
 ifStmt: IF_KEY OPEN_PAR expr CLOSE_PAR statement %prec OTRO_ELSE_KEY{$$ = new IfStmt($3, $5, nullptr); } | 
@@ -83,27 +81,27 @@ returnStmt: RETURN_KEY SEMICOLON {$$ = new ReturnStmt(nullptr); }| RETURN_KEY ex
 exprStmt: funcCall SEMICOLON {$$ = new ExprStmt($1); };
 block: LEFT_BRACKET statementList RIGHT_BRACKET {$$ = new Block($2); };
 
-expr : logicalOr {$$ = $1;};
+expr : logicalOr {$$ = new LogicalOr($1, Rest());;};
 logicalOr: logicalAnd {  $$ = $1; } 
         |  logicalOr LOGIC_OR logicalAnd 
         { auto node = dynamic_cast<LogicalOr*>($1);
         node->rest.push_back(std::make_pair($2, $3));
         $$ = node;};
-logicalAnd: equality { $$ = $1; } | logicalAnd LOGIC_AND equality 
+logicalAnd: equality { $$ = new LogicalAnd($1, Rest());; } | logicalAnd LOGIC_AND equality 
     { auto node = dynamic_cast<LogicalAnd*>($1);
         node->rest.push_back(std::make_pair($2, $3));
         $$ = node;};
-equality: comparison { $$ = $1; } | equality eq comparison 
+equality: comparison { $$ = new Equality($1, Rest());; } | equality eq comparison 
     { auto node = dynamic_cast<Equality*>($1);
         node->rest.push_back(std::make_pair($2, $3));
         $$ = node;};
 eq: EQUAL_TO {$$ = $1; } | NOT_EQUAL{ $$ = $1;};
-comparison: term {$$ = $1; } | comparison com term 
+comparison: term {$$ = new Comparison($1, Rest());; } | comparison com term 
     { auto node = dynamic_cast<Comparison*>($1);
         node->rest.push_back(std::make_pair($2, $3));
         $$ = node;};
 com: LESS_THAN {$$= $1; } | LESS_EQUAL {$$= $1; } | GREATER_THAN {$$= $1; } | GREATER_EQUAL {$$= $1; };
-term: factor { $$ = $1; } | term arith factor 
+term: factor { $$ = new Term($1, Rest()); } | term arith factor 
     { auto node = dynamic_cast<Term*>($1);
         node->rest.push_back(std::make_pair($2, $3));
         $$ = node;};
@@ -113,11 +111,11 @@ factor: unary {$$ = new Factor($1,Rest());} | factor arith1 unary
         node->rest.push_back(std::make_pair($2, $3));
         $$ = node;};
 arith1: OP_MULT {$$ = $1; } | OP_DIVIDE{ $$ = $1; } | OP_MODULE {$$ = $1;}
-unary: logic unary {$$ = new UnaryExpr($1, $2, nullptr); }| primary {$$ = $1; };
+unary: logic unary {$$ = new Unary($1, $2, nullptr); }| primary {$$ = $1; };
 logic: LOGIC_NOT {$$ = $1; } | OP_SUB { $$ = $1; };
 primary: NUMBER {$$ = new NumberExpr($1); }| IDENTIFIER {$$ = new IdentifierExpr($1);} | funcCall{$$ = $1;}  | OPEN_PAR expr CLOSE_PAR {$$ = new ParenExpr($2);} ;
 funcCall: IDENTIFIER OPEN_PAR argList CLOSE_PAR { $$ = new FuncCall(new IdentifierExpr($1), $3);};
-argList: { $$ = new ArgList(); }
-       | expr { auto node = new ArgList(); node->arg.push_back($1); $$ = node; }
+argList: { List v; $$ = new ArgList(v);}
+       | expr {  List v; v.push_back($1); $$ = new ArgList(v); }
        | argList COMMA expr { auto node = dynamic_cast<ArgList*>($1); node->arg.push_back($3); $$ = node; };
 %%
