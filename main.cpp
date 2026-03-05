@@ -19,19 +19,21 @@ int main(int argc, char* argv[]) {
     } 
 
     Proyect::ProyectoLexer my_lexer(&inputFile);
+    //instanciar root primero porque el parser lo necesita 
     AstNode* root = nullptr;
     Proyect::Parser my_parser(my_lexer, root);
 
     try{
         my_parser();
+        //validar que root tenga algo
         if (root) {
             std::cout << "De txt a AST: " << root->toString() << std::endl;
+            std::cout<<"Syntax correct\n";
         }
-        std::cout<<"Syntax correct\n";
+       
     }catch(const Proyect::Parser::syntax_error& e){
         std::cerr << "Error de sintaxis: " << e.what() << "\n";
     }
-
 
     return 0;
 }

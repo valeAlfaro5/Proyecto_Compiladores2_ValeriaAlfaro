@@ -8,14 +8,13 @@
 %token <std::string> ASSIGN  OPEN_PAR CLOSE_PAR
 %token SEMICOLON COMMA  LEFT_BRACKET  RIGHT_BRACKET 
 %token <long> NUMBER 
-%token <std::string> IDENTIFIER 
-%token <std::string> INT_KEY VOID_KEY IF_KEY ELSE_KEY WHILE_KEY PRINT_KEY DEF_KEY RETURN_KEY REF_KEY ARROW 
+%token <std::string> IDENTIFIER INT_KEY VOID_KEY IF_KEY ELSE_KEY WHILE_KEY PRINT_KEY DEF_KEY RETURN_KEY REF_KEY ARROW 
 
 %nterm <AstNode*> program
-%type <AstNode*> expr logicalOr logicalAnd equality comparison term factor unary primary funcCall argList   
-%type <AstNode*> statement assignment ifStmt whileStmt printStmt returnStmt exprStmt block
-%type <List>  statementList declare_list paramList
 %type <AstNode*> declaration varDecl funcDecl param optionParam
+%type <AstNode*> statement assignment ifStmt whileStmt printStmt returnStmt exprStmt block
+%type <AstNode*> expr logicalOr logicalAnd equality comparison term factor unary primary funcCall argList   
+%type <List>  statementList declare_list paramList
 %type <std::string> returnType eq com arith arith1 logic
 
 
@@ -65,7 +64,6 @@ varDecl: INT_KEY IDENTIFIER SEMICOLON {$$ = new VarDecl(new IdentifierExpr($2), 
 funcDecl: DEF_KEY IDENTIFIER OPEN_PAR optionParam CLOSE_PAR ARROW returnType block
         {$$ = new FuncDecl(new IdentifierExpr($2), $4, $7, $8); };
 optionParam: {$$ = nullptr ;} | paramList {$$ = new ParamList($1) ;}
-returnType: INT_KEY {$$ = $1 ;}| VOID_KEY{$$ = $1 ;};
 paramList: param { $$ = List();  $$.push_back($1); }| paramList COMMA param { $1.push_back($3); $$ = $1; };
 param: INT_KEY IDENTIFIER {$$ = new Param("",new IdentifierExpr($2));}| 
         INT_KEY REF_KEY IDENTIFIER {$$ = new Param("ref", new IdentifierExpr($3));};
@@ -81,8 +79,8 @@ returnStmt: RETURN_KEY SEMICOLON {$$ = new ReturnStmt(nullptr); }| RETURN_KEY ex
 exprStmt: funcCall SEMICOLON {$$ = new ExprStmt($1); };
 block: LEFT_BRACKET statementList RIGHT_BRACKET {$$ = new Block($2); };
 
-expr : logicalOr {$$ = new LogicalOr($1, Rest());;};
-logicalOr: logicalAnd {  $$ = $1; } 
+expr : logicalOr {$$ = $1;};
+logicalOr: logicalAnd {  $$ = new LogicalOr($1, Rest()); } 
         |  logicalOr LOGIC_OR logicalAnd 
         { auto node = dynamic_cast<LogicalOr*>($1);
         node->rest.push_back(std::make_pair($2, $3));
@@ -95,27 +93,33 @@ equality: comparison { $$ = new Equality($1, Rest());; } | equality eq compariso
     { auto node = dynamic_cast<Equality*>($1);
         node->rest.push_back(std::make_pair($2, $3));
         $$ = node;};
-eq: EQUAL_TO {$$ = $1; } | NOT_EQUAL{ $$ = $1;};
 comparison: term {$$ = new Comparison($1, Rest());; } | comparison com term 
     { auto node = dynamic_cast<Comparison*>($1);
         node->rest.push_back(std::make_pair($2, $3));
         $$ = node;};
-com: LESS_THAN {$$= $1; } | LESS_EQUAL {$$= $1; } | GREATER_THAN {$$= $1; } | GREATER_EQUAL {$$= $1; };
 term: factor { $$ = new Term($1, Rest()); } | term arith factor 
     { auto node = dynamic_cast<Term*>($1);
         node->rest.push_back(std::make_pair($2, $3));
         $$ = node;};
-arith: OP_PLUS {$$ = $1; } | OP_SUB {$$ = $1; };
 factor: unary {$$ = new Factor($1,Rest());} | factor arith1 unary 
     { auto node = dynamic_cast<Factor*>($1);
         node->rest.push_back(std::make_pair($2, $3));
         $$ = node;};
-arith1: OP_MULT {$$ = $1; } | OP_DIVIDE{ $$ = $1; } | OP_MODULE {$$ = $1;}
 unary: logic unary {$$ = new Unary($1, $2, nullptr); }| primary {$$ = $1; };
 logic: LOGIC_NOT {$$ = $1; } | OP_SUB { $$ = $1; };
 primary: NUMBER {$$ = new NumberExpr($1); }| IDENTIFIER {$$ = new IdentifierExpr($1);} | funcCall{$$ = $1;}  | OPEN_PAR expr CLOSE_PAR {$$ = new ParenExpr($2);} ;
+
 funcCall: IDENTIFIER OPEN_PAR argList CLOSE_PAR { $$ = new FuncCall(new IdentifierExpr($1), $3);};
 argList: { List v; $$ = new ArgList(v);}
        | expr {  List v; v.push_back($1); $$ = new ArgList(v); }
        | argList COMMA expr { auto node = dynamic_cast<ArgList*>($1); node->arg.push_back($3); $$ = node; };
+
+
+returnType: INT_KEY {$$ = $1 ;}| VOID_KEY{$$ = $1 ;};
+eq: EQUAL_TO {$$ = $1; } | NOT_EQUAL{ $$ = $1;};
+com: LESS_THAN {$$= $1; } | LESS_EQUAL {$$= $1; } | GREATER_THAN {$$= $1; } | GREATER_EQUAL {$$= $1; };
+arith: OP_PLUS {$$ = $1; } | OP_SUB {$$ = $1; };
+arith1: OP_MULT {$$ = $1; } | OP_DIVIDE{ $$ = $1; } | OP_MODULE {$$ = $1;}
 %%
+
+

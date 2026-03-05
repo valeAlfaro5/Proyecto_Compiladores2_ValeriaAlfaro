@@ -14,10 +14,10 @@
     //se declaran antes
     class AstNode;
     //vector donde se acumulan todo
-    typedef std::vector<AstNode*> List;
+    using List =  std::vector<AstNode*>;
 
     //vector con operador y siguiente expresion
-    typedef std::vector<std::pair<std::string, AstNode*>> Rest;
+    using Rest =  std::vector<std::pair<std::string, AstNode*>>;
 
 %}
 

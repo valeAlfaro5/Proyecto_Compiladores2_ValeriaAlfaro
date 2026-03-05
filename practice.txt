@@ -3,7 +3,7 @@ int y = 10;
 
 def suma(int a, int b) -> int {
     int resultado;
-    resultado = a + b;
+    resultado = (a + b);
     return resultado;
 }
 
@@ -19,15 +19,14 @@ def main() -> int {
     if (z > 5) {
         print(z);
     } else {
-        print(0);
+        print(-10);
     }
 
     while (z < 10) {
         z = z + 1;
     }
 
-    incrementar(z);
+    incrementar(z);//ignora
 
     return z;
 }
-
