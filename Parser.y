@@ -6,12 +6,12 @@
 %token <std::string> EQUAL_TO NOT_EQUAL LESS_THAN LESS_EQUAL GREATER_THAN GREATER_EQUAL //compare
 %token <std::string> LOGIC_AND  LOGIC_OR LOGIC_NOT //logic
 %token <std::string> ASSIGN  OPEN_PAR CLOSE_PAR
-%token SEMICOLON COMMA  LEFT_BRACKET  RIGHT_BRACKET 
+%token SEMICOLON COMMA  LEFT_BRACKET  RIGHT_BRACKET LEFT_BRACE RIGHT_BRACE
 %token <long> NUMBER 
 %token <std::string> IDENTIFIER INT_KEY VOID_KEY IF_KEY ELSE_KEY WHILE_KEY PRINT_KEY DEF_KEY RETURN_KEY REF_KEY ARROW 
 
 %nterm <AstNode*> program
-%type <AstNode*> declaration varDecl funcDecl param optionParam
+%type <AstNode*> declaration varDecl funcDecl param optionParam arrayDecl
 %type <AstNode*> statement assignment ifStmt whileStmt printStmt returnStmt exprStmt block
 %type <AstNode*> expr logicalOr logicalAnd equality comparison term factor unary primary funcCall argList   
 %type <List>  statementList declare_list paramList
@@ -57,7 +57,7 @@ namespace Proyect{
 
 program: declare_list {root = new Program($1);};
 declare_list: { $$ = List(); } |  declare_list declaration {  $1.push_back($2); $$ = $1; };
-declaration: varDecl {$$ = $1;}| funcDecl {$$ = $1;};
+declaration: varDecl {$$ = $1;}| funcDecl {$$ = $1;} | arrayDecl;
 varDecl: INT_KEY IDENTIFIER SEMICOLON {$$ = new VarDecl(new IdentifierExpr($2), nullptr);}| 
          INT_KEY IDENTIFIER ASSIGN expr SEMICOLON
          { $$ = new VarDecl(new IdentifierExpr($2), $4);};

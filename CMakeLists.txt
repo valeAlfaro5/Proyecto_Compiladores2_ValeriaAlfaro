@@ -10,6 +10,7 @@ set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" "${CMAKE_MODULE_PATH}")
 find_package(Reflex REQUIRED)
 find_package(BISON REQUIRED)
 find_package(TreeCC REQUIRED)
+find_program(LLVM_CONFIG_EXECUTABLE llvm-config HINTS /opt/homebrew/opt/llvm/bin)
 
 set (LEXER_SOURCE_FILE ${CMAKE_SOURCE_DIR}/Lexer.l)
 set (LEXER_CPP_SOURCE Lexer.cpp)

@@ -17,7 +17,7 @@
 %%
 
 "+"     { yylval.emplace<std::string>(text()); return Token::OP_PLUS; }
-"-"     {yylval.emplace<std::string>(text()); return Token::OP_SUB; }
+"-"     { yylval.emplace<std::string>(text()); return Token::OP_SUB; }
 "*"     { yylval.emplace<std::string>(text()); return Token::OP_MULT; }
 "/"     { yylval.emplace<std::string>(text()); return Token::OP_DIVIDE; }
 "%"     { yylval.emplace<std::string>(text()); return Token::OP_MODULE; }
@@ -27,7 +27,7 @@
 "!="    { yylval.emplace<std::string>(text()); return Token::NOT_EQUAL; }
 "<"     { yylval.emplace<std::string>(text()); return Token::LESS_THAN; }
 "<="    { yylval.emplace<std::string>(text()); return Token::LESS_EQUAL; }
-">"     {yylval.emplace<std::string>(text());  return Token::GREATER_THAN; }
+">"     { yylval.emplace<std::string>(text());  return Token::GREATER_THAN; }
 ">="    { yylval.emplace<std::string>(text()); return Token::GREATER_EQUAL; }
 "&&"    { yylval.emplace<std::string>(text()); return Token::LOGIC_AND; }
 "||"    { yylval.emplace<std::string>(text()); return Token::LOGIC_OR; }
@@ -37,6 +37,8 @@
 ","     { yylval.emplace<std::string>(text()); return Token::COMMA; }
 "{"     { yylval.emplace<std::string>(text()); return Token::LEFT_BRACKET; }
 "}"     { yylval.emplace<std::string>(text());  return Token::RIGHT_BRACKET; }
+"["     { yylval.emplace<std::string>(text()); return Token::LEFT_BRACE; }
+"]"     { yylval.emplace<std::string>(text());  return Token::RIGHT_BRACE; }
 \/\/.*  ;//ignorar comentarios  
 "int"   { yylval.emplace<std::string>(text()); return Token::INT_KEY; }
 "void"  { yylval.emplace<std::string>(text()); return Token::VOID_KEY; }

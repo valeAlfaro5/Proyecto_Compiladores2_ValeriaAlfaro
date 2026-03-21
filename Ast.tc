@@ -6,9 +6,18 @@
     #include <vector>
     #include <utility>
     #include <unordered_map>
+    #include <llvm/IR/LLVMContext.h>
+    #include <llvm/IR/IRBuilder.h>
+    #include <llvm/IR/Module.h>
+    #include <llvm/IR/Value.h>
+    #include <llvm/IR/Constants.h>
+    llvm::LLVMContext context;
+    llvm::IRBuilder<> builder(context);
+    llvm::Module module("main", context);
 
     using stdstring = std::string;
-    using symbols = std::unordered_map<stdstring, long>;
+    using Value = llvm::Value*;
+    using SymbolTable = std::unordered_map<stdstring, Value>;
 
     //no acepta vectores dentro de los nodos
     //se declaran antes
@@ -69,7 +78,7 @@
 %node IfStmt Stmt ={
     AstNode* express; 
     AstNode* TrueStmt;
-    AstNode* FalseStmt  ;
+    AstNode* FalseStmt;
 }
 
 %node WhileStmt Stmt ={
@@ -159,6 +168,9 @@
 }
 
 %operation %virtual stdstring toString(AstNode *this)
+%operation %virtual Value genExpr(Expr *this, SymbolTable *symbol)
+%operation %virtual void genStmt(Stmt *this, SymbolTable *symbol)
+%operation %virtual void genDeclare(Declare *this, SymbolTable *symbol)
 
 //empiezan los toStrings
 toString(Program){
@@ -178,6 +190,14 @@ toString(VarDecl){
     }
 }
 
+genDeclare(VarDecl){
+    Value alloca = builder.CreateAlloca(llvm::Type::getInt64Ty(context), nullptr,ident->toString());
+    (*symbol)[ident->toString()] = alloca;
+    if(express){
+        builder.CreateStore(express->genExpr(symbol), alloca);
+    }
+}
+
 toString(FuncDecl){
     std::string result = "def "  + ident->toString() +"(";
 
@@ -187,6 +207,15 @@ toString(FuncDecl){
 
     result += ") -> " + type + " " + block->toString();
     return result;
+}
+
+genDeclare(FuncDecl){
+    if(type == "int"){
+        llvm::Type* returnType = llvm::Type::getInt64Ty(context); 
+    }else if(type == "void"){
+        llvm::Type* returnType = llvm::Type::getVoidTy(context); 
+    }
+
 }
 
 toString(ParamList){
@@ -200,6 +229,10 @@ toString(ParamList){
         }
     }
     return result;
+}
+
+genDeclare(ParamList){
+    
 }
 
 toString(Param){
@@ -216,6 +249,11 @@ toString(AssignStmt){
     return ident->toString() + " = " + express->toString() +";";
 }
 
+genStmt(AssignStmt){
+    Value pos = (*symbol)[ident->toString()];
+    Value val = builder.CreateStore( express->genExpr(symbol), pos);
+}
+
 toString(IfStmt){
     std::string state = "if (" + express->toString() +")" + "\t"+TrueStmt->toString();
     
@@ -226,12 +264,70 @@ toString(IfStmt){
     return state;
 }
 
+genStmt(IfStmt){
+    //crear funcion principal
+    Value cond = express->genExpr(symbol);
+    llvm::Function* func = builder.GetInsertBlock()->getParent();
+
+    //crear bloques necesitados
+    auto thenBlock = llvm::BasicBlock::Create(context, "then", func);
+    auto mergeBlock = llvm::BasicBlock::Create(context, "merge", func);
+    auto elseBlock = nullptr;
+
+    if(FalseStmt){
+        builder.CreateCondBr(cond, thenBlock, elseBlock);
+        elseBlock = llvm::BasicBlock::Create(context, "else", func);
+        builder.SetInsertPoint(elseBlock);
+        FalseStmt->genStmt(symbol);
+        if(!builder.GetInsertBlock()->getTerminator()){
+            builder.CreateBr(mergeBlock);
+        }
+    }else{
+        builder.CreateCondBr(cond, thenBlock, mergeBlock);
+    }
+
+    builder.SetInsertPoint(thenBlock);
+    TrueStmt->genStmt(symbol);
+    if(!builder.GetInsertBlock()->getTerminator()){
+        builder.CreateBr(mergeBlock);
+    }
+
+    builder.SetInsertPoint(mergeBlock);
+}
+
 toString(WhileStmt){
     return "while ( " + express->toString() + " ) " + state->toString();
 }
 
+genStmt(WhileStmt){
+   llvm::Function* fun = builder.SetInsertPoint()->getParent();
+   
+   //crear bloques
+   auto cond = llvm::BasicBlock::Create(context, "cond", fun);
+   auto body = llvm::BasicBlock::Create(context, "body", fun);
+   auto merge = llvm::BasicBlock::Create(context, "merge", fun);
+
+   builder.CreateBr(condi);
+   builder.SetInsertPoint(cond);
+   Value con = express->genExpr(symbol);
+   builder.CreateCondBr(con, body, merge);
+
+   builder.SetInsertPoint(body);
+   state->genStmt(symbol);
+   if(!builder.GetInsertBlock()->getTerminator()){
+        builder.CreateBr(cond);
+    }
+
+   builder.SetInsertPoint(merge);
+}
+
 toString(PrintStmt){
     return "print ( " + express->toString() + " );" ;
+}
+
+genStmt(PrintStmt){
+    Value expr = express->genExpr(symbol);
+    
 }
 
 toString(ReturnStmt){
@@ -242,8 +338,20 @@ toString(ReturnStmt){
     }
 }
 
+genStmt(ReturnStmt){
+    if(express){
+        builder.CreateRet(express->genExpr(symbol));
+    }else{
+        builder.CreateRetVoid();
+    }
+}
+
 toString(ExprStmt){
     return func->toString() + ";";
+}
+
+genStmt(ExprStmt){
+    func->genExpr(symbol);
 }
 
 toString(Block){
@@ -255,6 +363,12 @@ toString(Block){
     return result;
 }
 
+genStmt(Block){
+    for(auto &s : stmt){
+        s->genStmt(symbol);
+    }
+}
+
 toString(LogicalOr){
     std::string result = first->toString();
     for (auto &p : rest) {
@@ -263,12 +377,30 @@ toString(LogicalOr){
     return result;
 }
 
+genExpr(LogicalOr){
+    Value left = first->genExpr(symbol);
+    for( auto &p: rest){
+        Value second = p.second->genExpr(symbol);
+        left = builder.CreateOr(left, second, "ortmp");
+    }
+    return left;
+}
+
 toString(LogicalAnd){
     std::string result = equal->toString();
     for (auto &p : rest) {
         result += " && " + p.second->toString(); 
     }
     return result;
+}
+
+genExpr(LogicalAnd){
+    Value first = equal->genExpr(symbol);
+    for (auto &p : rest){
+        Value second = p.second->genExpr(symbol);
+        first = builder.CreateAnd(first, second, "andtmp");
+    }
+    return first;
 }
 
 toString(Equality){
@@ -281,12 +413,45 @@ toString(Equality){
     return result;
 }
 
+genExpr(Equality){
+    Value first = compare->genExpr(symbol);
+
+    for(auto &p : rest){
+        Value second = p.second->genExpr(symbol);
+
+        if(p.first == "=="){
+            first = builder.CreateICmpEQ(first, second, "eqtmp");
+        }else if(p.first == "!="){
+            first = builder.CreateICmpNE(first, second, "netmp");
+        }
+    }
+    return first;
+}
+
 toString(Comparison){
     std::string result = term->toString();
     for (auto &p : rest) {
         result += p.first + " " + p.second->toString(); 
     }
     return result;
+}
+
+genExpr(Comparison){
+    Value first = term->genExpr(symbol);
+    for(auto &p : rest){
+        Value second = p.second->genExpr(symbol);
+        if(p.first == "<"){
+            first = builder.CreateICmpSLT(first, second, "slttmp");
+        }else if(p.first == "<="){
+            first = builder.CreateICmpSLE(first, second, "sletmp");
+        }else if(p.first == ">"){
+            first = builder.CreateICmpSGT(first, second, "sgttmp");
+        }else if(p.first == ">="){
+            first = builder.CreateICmpSGE(first, second, "sgetmp");
+        }
+    }
+
+    return first;
 }
 
 toString(Term){
@@ -297,12 +462,44 @@ toString(Term){
     return result;
 }
 
+genExpr(Term){
+    Value first = fact->genExpr(symbol);
+
+    for(auto &p : rest){
+        Value second = p.second->genExpr(symbol);
+
+        if(p.first == "+"){
+           first = builder.CreateAdd(first, second, "addtmp");
+        }else if (p.first == "-"){
+            first = builder.CreateSub(first,second, "subtmp");
+        }
+    }
+    return first;
+}
+
 toString(Factor){
     std::string result = unar->toString();
     for (auto &p : rest) {
         result += p.first + " " + p.second->toString(); 
     }
     return result;
+}
+
+genExpr(Factor){
+    Value first = unar->genExpr(symbol);
+    for(auto &p : rest){
+        Value second = p.second->genExpr(symbol);
+
+        if(p.first == "*"){
+            first = builder.CreateMul(first, second, "multmp");
+        }else if (p.first == "/"){
+            first = builder.CreateSDiv(first, second, "divtmp");
+        }else if (p.first == "%"){
+            first = builder.CreateSRem(first, second, "modtmp");
+        }
+    }
+
+    return first;
 }
 
 toString(Unary){
@@ -317,11 +514,37 @@ toString(Unary){
     return result;
 }
 
+genExpr(Unary){
+    Value first;
+    if(childPrimary){
+        first = childPrimary->genExpr(symbol);
+    }else if( childUnary){
+        first = childUnary->genExpr(symbol);
+        if(op == "-"){
+            first = builder.CreateNeg(first, "negtmp");
+        }else if(op == "!"){
+            first = builder.CreateNot(first, "nottmp");
+        }
+    }
+
+    return first;
+}
+
 toString(FuncCall){
     std::string result = ident->toString() + "(" ;
     if(arg) result += arg->toString();
     result += ")";
     return result;
+}
+
+genExpr(FuncCall){
+    Value first = ident->genExpr(symbol);
+    if(arg){
+        first = builder.CreateCall(first, llvm::ConstantArrayRef::get(context, arg), "functmp");
+    }else{
+        first = builder.CreateCall(first, nullptr, "functmp");
+    }
+    return first;
 }
 
 toString(ArgList){
@@ -335,6 +558,16 @@ toString(ArgList){
         }
     }
     return result;
+}
+
+genExpr(ArgList){
+    std::vector<Value> args;
+
+    for(auto a: arg){
+        args.push_back(a->genExpr(symbol));
+    }
+
+    return args;
 }
 
 toString(NumberExpr){
@@ -352,6 +585,32 @@ toString(Primary){
     if(paren) return paren->toString();
 }
 
+genExpr(Primary){
+    Value val;
+
+    if(num) val = num->genExpr(symbol);
+    if(ident) val = ident->genExpr(symbol);
+    if(func) val = func->genExpr(symbol);
+    if(paren) val = paren->genExpr(symbol);
+
+    return val;
+}
+
 toString(ParenExpr){
     return "(" + expr->toString() +")";
+}
+
+genExpr(ParenExpr){
+    Value first = expr->genExpr(symbol);
+    return first;
+}
+
+genExpr(NumberExpr){
+    return llvm::ConstantInt::get(llvm::Type::getInt64Ty(context), value, true);
+}
+
+genExpr(IdentifierExpr){
+    Value ptr = (*symbol)[name];
+    Value val = builder.CreateLoad(llvm::Type::getInt64Ty(context), ptr);
+    return val;
 }
