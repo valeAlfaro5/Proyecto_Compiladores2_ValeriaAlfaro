@@ -197,12 +197,21 @@ genCode(VarDecl){
     std::string place = newTemp(); 
     std::string code = place + " = alloca i64\n";
 
-    symbol[ident->toString()] = {place, "i64*"};
+    symbol[ident->toString()] = {"", place, "i64*"};
 
     if(express){
         auto [expr_code, expr_place, expr_type] = express->genCode();
         code += expr_code;
-        code += " store i64 " + expr_place + ", i64* " + place + "\n";
+        if(expr_type == "i64*"){
+            std::string tmp = newTemp();
+            code += tmp + " = load i64, i64* " + expr_place + "\n";
+            code += "store i64 " + tmp + ", i64* " + place + "\n";
+        } else if(expr_type == "i64"){
+            code += "store i64 " + expr_place + ", i64* " + place + "\n";
+        } else if(expr_type == "i1"){
+            code += "store i1 " + expr_place + ", i1* " + place + "\n";
+        }
+        
     }
     return {code};
 }
@@ -221,7 +230,6 @@ toString(FuncDecl){
 genCode(FuncDecl){
     std::string code ="define ";
     std::string funcType;
-
     if(type == "int" ) {
         funcType = "i64";
     }else if (type == "void"){
@@ -229,9 +237,9 @@ genCode(FuncDecl){
     }
 
     if(symbol.find(ident->toString()) != symbol.end()){
-         return CodeGen("; ERROR: Funcion: " + ident->toString() + " ya ha sido declarada\n", "0", "i64");
+        return CodeGen("; ERROR: Funcion: " + ident->toString() + " ya ha sido declarada\n");
     }else{
-        symbol[ident->toString()] = {"", funcType};
+        symbol[ident->toString()] = {"", "", funcType};
     }
 
     code += funcType + " @" + ident->toString() + "(";
@@ -289,8 +297,9 @@ genCode(Param){
         type = "i64*";
     }
     code += " %" + ident->toString();
-    symbol[ident->toString()] = { "%" + ident->toString(), type };
-    return {code};
+    std::string place ="%" + ident->toString();
+    symbol[ident->toString()] = { "", place, type };
+    return {code, place, type};
 }
 
 toString(AssignStmt){
@@ -724,19 +733,21 @@ genCode(NumberExpr){
 }
 
 genCode(IdentifierExpr){
-    std::string place = newTemp();
+    std::string place;
      std::string code ;
     
     if (symbol.find(name) == symbol.end()) {
-        return CodeGen("; ERROR: Variable: " + name + " no ha sido declarada\n", "0", "i64");
+        return CodeGen("; ERROR: Variable: " + name + " no ha sido declarada\n");
     }
 
-    std::string varPlace = symbol[name].code;
+    std::string varPlace = symbol[name].place;
+    //std::cerr<< "Tipo de identifier: " <<symbol[name].type;
 
-    if(symbol[name].type == "i64"){
+    if(symbol[name].type == "i64*"){
+        place = newTemp();
         code += place + " = load i64, i64* " + varPlace + "\n";
         return {code, place, "i64"};
-    } else if(symbol[name].type == "i64*"){
+    } else {
         return {"", varPlace, "i64"};
     }
 }

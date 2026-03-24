@@ -15,6 +15,5 @@ struct CodeGen{
 
 using SymbolTable = std::unordered_map<std::string, CodeGen>;
 
-
 std::string newTemp();
 std::string newLabel();

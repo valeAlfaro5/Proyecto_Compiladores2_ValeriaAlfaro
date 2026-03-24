@@ -1,11 +1,6 @@
-def suma(int a, int b) -> int {
+def suma(int ref a, int ref b) -> int {
     int r = a + b;
     return(r);
-}
-
-def esMayor(int a, int b) -> int {
-    int res = a > b;
-    return(res);
 }
 
 def printSuma(int a, int b) -> void {
@@ -19,50 +14,6 @@ def testAST() -> void {
     int y = 3;
     int z = 0;
 
-    // ===== ARITMÉTICOS =====
-    z = x + y;
-    print(z);
-
-    z = x - y;
-    print(z);
-
-    z = x * y;
-    print(z);
-
-    z = x / y;
-    print(z);
-
-    z = x % y;
-    print(z);
-
-    // ===== COMPARACIONES =====
-    print(x == y);
-    print(x != y);
-    print(x < y);
-    print(x <= y);
-    print(x > y);
-    print(x >= y);
-
-    // ===== LÓGICOS =====
-    print((x > y) && (y > 0));
-    print((x < y) || (y > 0));
-    print(!(x == y));
-
-    // ===== IF / ELSE =====
-    if (x > y) {
-        print(x);
-    } else {
-        print(y);
-    }
-
-    // ===== WHILE =====
-    int i = 0;
-    while (i < 5) {
-        print(i);
-        i = i + 1;
-    }
-
-    // ===== FUNCIONES =====
     z = suma(x, y);     // func con return
     print(z);
 
