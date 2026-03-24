@@ -37,8 +37,6 @@
 ","     { yylval.emplace<std::string>(text()); return Token::COMMA; }
 "{"     { yylval.emplace<std::string>(text()); return Token::LEFT_BRACKET; }
 "}"     { yylval.emplace<std::string>(text());  return Token::RIGHT_BRACKET; }
-"["     { yylval.emplace<std::string>(text()); return Token::LEFT_BRACE; }
-"]"     { yylval.emplace<std::string>(text());  return Token::RIGHT_BRACE; }
 \/\/.*  ;//ignorar comentarios  
 "int"   { yylval.emplace<std::string>(text()); return Token::INT_KEY; }
 "void"  { yylval.emplace<std::string>(text()); return Token::VOID_KEY; }

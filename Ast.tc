@@ -6,18 +6,9 @@
     #include <vector>
     #include <utility>
     #include <unordered_map>
-    #include <llvm/IR/LLVMContext.h>
-    #include <llvm/IR/IRBuilder.h>
-    #include <llvm/IR/Module.h>
-    #include <llvm/IR/Value.h>
-    #include <llvm/IR/Constants.h>
-    llvm::LLVMContext context;
-    llvm::IRBuilder<> builder(context);
-    llvm::Module module("main", context);
+    #include "CodeGen.hpp"
 
     using stdstring = std::string;
-    using Value = llvm::Value*;
-    using SymbolTable = std::unordered_map<stdstring, Value>;
 
     //no acepta vectores dentro de los nodos
     //se declaran antes
@@ -27,6 +18,7 @@
 
     //vector con operador y siguiente expresion
     using Rest =  std::vector<std::pair<std::string, AstNode*>>;
+    extern SymbolTable symbol;
 
 %}
 
@@ -49,6 +41,7 @@
 }
 
 %node VarDecl Declare  ={
+    //stdstring type;
     AstNode* ident;
     AstNode* express ;
 }
@@ -168,9 +161,19 @@
 }
 
 %operation %virtual stdstring toString(AstNode *this)
-%operation %virtual Value genExpr(Expr *this, SymbolTable *symbol)
-%operation %virtual void genStmt(Stmt *this, SymbolTable *symbol)
-%operation %virtual void genDeclare(Declare *this, SymbolTable *symbol)
+%operation %virtual CodeGen genCode(AstNode *this)
+
+genCode(Program){
+    std::string code;
+
+    code += "@.str = private constant [4 x i8] c\"%d\\0A\\00\"\n";
+    code += "declare i32 @printf(i8*, ...)\n\n";
+
+    for (auto d : declare){
+        code += d->genCode().code + "\n\n";
+    }
+    return {code};
+}
 
 //empiezan los toStrings
 toString(Program){
@@ -184,18 +187,24 @@ toString(Program){
 
 toString(VarDecl){
     if(express){
-        return "int " + ident->toString() + " = " + express->toString() + ";";
+        return  "int " + ident->toString() + " = " + express->toString() + ";";
     }else{
-         return "int " + ident->toString() + ";";
+         return "int " +  ident->toString() + ";";
     }
 }
 
-genDeclare(VarDecl){
-    Value alloca = builder.CreateAlloca(llvm::Type::getInt64Ty(context), nullptr,ident->toString());
-    (*symbol)[ident->toString()] = alloca;
+genCode(VarDecl){
+    std::string place = newTemp(); 
+    std::string code = place + " = alloca i64\n";
+
+    symbol[ident->toString()] = {place, "i64*"};
+
     if(express){
-        builder.CreateStore(express->genExpr(symbol), alloca);
+        auto [expr_code, expr_place, expr_type] = express->genCode();
+        code += expr_code;
+        code += " store i64 " + expr_place + ", i64* " + place + "\n";
     }
+    return {code};
 }
 
 toString(FuncDecl){
@@ -209,14 +218,33 @@ toString(FuncDecl){
     return result;
 }
 
-genDeclare(FuncDecl){
-    if(type == "int"){
-        llvm::Type* returnType = llvm::Type::getInt64Ty(context); 
-    }else if(type == "void"){
-        llvm::Type* returnType = llvm::Type::getVoidTy(context); 
+genCode(FuncDecl){
+    std::string code ="define ";
+    std::string funcType;
+
+    if(type == "int" ) {
+        funcType = "i64";
+    }else if (type == "void"){
+        funcType += "void";
     }
 
+    if(symbol.find(ident->toString()) != symbol.end()){
+         return CodeGen("; ERROR: Funcion: " + ident->toString() + " ya ha sido declarada\n", "0", "i64");
+    }else{
+        symbol[ident->toString()] = {"", funcType};
+    }
+
+    code += funcType + " @" + ident->toString() + "(";
+    if(param){
+        code += param->genCode().code;
+    }
+
+    code += ") {\nentry:\n";
+    code += block->genCode().code;
+    code += "\n}";
+    return {code};
 }
+
 
 toString(ParamList){
     std::string result;
@@ -228,11 +256,19 @@ toString(ParamList){
             result += ", ";
         }
     }
-    return result;
+    return result; 
 }
 
-genDeclare(ParamList){
-    
+genCode(ParamList){
+    std::string code  ="";
+    for (auto it = params.begin(); it != params.end(); ++it) {
+        code += (*it)->genCode().code;
+
+        if (std::next(it) != params.end()) {
+            code += ", ";
+        }
+    }
+    return {code};
 }
 
 toString(Param){
@@ -245,13 +281,28 @@ toString(Param){
     return result;
 }
 
+genCode(Param){
+    std::string code = "i64";
+    std::string type = "i64";
+    if(!ref.empty()){
+        code += "*";
+        type = "i64*";
+    }
+    code += " %" + ident->toString();
+    symbol[ident->toString()] = { "%" + ident->toString(), type };
+    return {code};
+}
+
 toString(AssignStmt){
     return ident->toString() + " = " + express->toString() +";";
 }
 
-genStmt(AssignStmt){
-    Value pos = (*symbol)[ident->toString()];
-    Value val = builder.CreateStore( express->genExpr(symbol), pos);
+genCode(AssignStmt){
+    auto [code1, place1, type1] = express->genCode();
+    std::string place= symbol[ident->toString()].code;
+    std::string code = code1 ;
+    code +=  " store i64 " + place1  + ", i64* " + place + "\n";
+    return {code};
 }
 
 toString(IfStmt){
@@ -264,70 +315,68 @@ toString(IfStmt){
     return state;
 }
 
-genStmt(IfStmt){
-    //crear funcion principal
-    Value cond = express->genExpr(symbol);
-    llvm::Function* func = builder.GetInsertBlock()->getParent();
+genCode(IfStmt){
+    auto [codeC, placeC,typeC ] = express->genCode();
+    auto codeThen = TrueStmt->genCode().code;
+    
+    std::string Lthen = newLabel();
+    std::string Lelse = newLabel();
+    std::string Lend = newLabel();
 
-    //crear bloques necesitados
-    auto thenBlock = llvm::BasicBlock::Create(context, "then", func);
-    auto mergeBlock = llvm::BasicBlock::Create(context, "merge", func);
-    auto elseBlock = nullptr;
-
+    std::string code = codeC;
+    code += "br i1 " + placeC + ", label %" + Lthen+ ", label %" + Lelse +"\n";
+    code += Lthen + ": \n";
+    code += codeThen;
+    code += "br label %" + Lend + "\n";
+    code += Lelse + ": \n";
     if(FalseStmt){
-        builder.CreateCondBr(cond, thenBlock, elseBlock);
-        elseBlock = llvm::BasicBlock::Create(context, "else", func);
-        builder.SetInsertPoint(elseBlock);
-        FalseStmt->genStmt(symbol);
-        if(!builder.GetInsertBlock()->getTerminator()){
-            builder.CreateBr(mergeBlock);
-        }
-    }else{
-        builder.CreateCondBr(cond, thenBlock, mergeBlock);
+        code += FalseStmt->genCode().code;
     }
-
-    builder.SetInsertPoint(thenBlock);
-    TrueStmt->genStmt(symbol);
-    if(!builder.GetInsertBlock()->getTerminator()){
-        builder.CreateBr(mergeBlock);
-    }
-
-    builder.SetInsertPoint(mergeBlock);
+    code += "br label %" + Lend+ "\n";
+    code += Lend + ": \n";
+    return {code};
 }
 
 toString(WhileStmt){
     return "while ( " + express->toString() + " ) " + state->toString();
 }
 
-genStmt(WhileStmt){
-   llvm::Function* fun = builder.SetInsertPoint()->getParent();
-   
-   //crear bloques
-   auto cond = llvm::BasicBlock::Create(context, "cond", fun);
-   auto body = llvm::BasicBlock::Create(context, "body", fun);
-   auto merge = llvm::BasicBlock::Create(context, "merge", fun);
+genCode(WhileStmt){
+   auto [codeC, placeC, typeC] = express->genCode();
+   auto body = state->genCode().code;
 
-   builder.CreateBr(condi);
-   builder.SetInsertPoint(cond);
-   Value con = express->genExpr(symbol);
-   builder.CreateCondBr(con, body, merge);
+   std::string Lcond = newLabel();
+   std::string Lbody = newLabel();
+   std::string Lend = newLabel();
 
-   builder.SetInsertPoint(body);
-   state->genStmt(symbol);
-   if(!builder.GetInsertBlock()->getTerminator()){
-        builder.CreateBr(cond);
-    }
-
-   builder.SetInsertPoint(merge);
+   std::string code = "br label %" + Lcond+"\n";
+   code += Lcond + ": \n";
+   code += codeC;
+   code += "br i1 " + placeC + ", label %" + Lbody +", label %" + Lend+"\n";
+   code += Lbody + ": \n";
+   code += body;
+   code += "br label %" + Lcond +"\n";
+   code += Lend + ": \n";
+   return {code};
 }
 
 toString(PrintStmt){
     return "print ( " + express->toString() + " );" ;
 }
 
-genStmt(PrintStmt){
-    Value expr = express->genExpr(symbol);
-    
+genCode(PrintStmt){
+    auto [codeE, placeE, typeE] = express->genCode();
+    std::string place = newTemp();
+    std::string code = codeE;
+
+    if(typeE == "i1"){
+        std::string tmp64 = newTemp();
+        code += "  " + tmp64 + " = zext i1 " + placeE + " to i64\n";
+        placeE = tmp64;
+    }
+    code += "  " + place + " = getelementptr [4 x i8], [4 x i8]* @.str, i32 0, i32 0\n";
+    code += "  call i64 (i8*, ...) @printf(i8* " + place + ", i64 " + placeE + ")\n";
+    return {code};
 }
 
 toString(ReturnStmt){
@@ -338,20 +387,25 @@ toString(ReturnStmt){
     }
 }
 
-genStmt(ReturnStmt){
+genCode(ReturnStmt){
+    std::string code = "";
     if(express){
-        builder.CreateRet(express->genExpr(symbol));
-    }else{
-        builder.CreateRetVoid();
+        auto [codeC, placeC, typeC] = express->genCode();
+        code += codeC;
+        code += "ret " + typeC + " " + placeC + "\n";
+    } else {
+        code += "ret void\n";
     }
+    return {code};
 }
 
 toString(ExprStmt){
     return func->toString() + ";";
 }
 
-genStmt(ExprStmt){
-    func->genExpr(symbol);
+genCode(ExprStmt){
+    auto [codeE, placeE, typeE] = func->genCode();
+    return {codeE};
 }
 
 toString(Block){
@@ -363,10 +417,12 @@ toString(Block){
     return result;
 }
 
-genStmt(Block){
+genCode(Block){
+    std::string code;
     for(auto &s : stmt){
-        s->genStmt(symbol);
+        code += s->genCode().code +"\n";
     }
+    return {code};
 }
 
 toString(LogicalOr){
@@ -377,13 +433,17 @@ toString(LogicalOr){
     return result;
 }
 
-genExpr(LogicalOr){
-    Value left = first->genExpr(symbol);
+genCode(LogicalOr){
+    auto [left_code, left_place, type1] = first->genCode();
+    std::string code = left_code;
     for( auto &p: rest){
-        Value second = p.second->genExpr(symbol);
-        left = builder.CreateOr(left, second, "ortmp");
+        auto [right_code, right_place, type2] = p.second->genCode();
+        std::string place = newTemp();
+        code += right_code +" " + place + " = or i1 " + left_place + ", " + right_place+"\n";
+        left_place = place;
+        type1 = "i1";
     }
-    return left;
+    return {code, left_place, type1};
 }
 
 toString(LogicalAnd){
@@ -394,13 +454,17 @@ toString(LogicalAnd){
     return result;
 }
 
-genExpr(LogicalAnd){
-    Value first = equal->genExpr(symbol);
+genCode(LogicalAnd){
+    auto [left_code, left_place, type1] = equal->genCode();
+    std::string code = left_code;
     for (auto &p : rest){
-        Value second = p.second->genExpr(symbol);
-        first = builder.CreateAnd(first, second, "andtmp");
+        auto [right_code, right_place, type2] = p.second->genCode();
+        std::string place = newTemp();
+        code += right_code + " "+ place +" = and i1 "+ left_place + ", " + right_place+"\n";
+        left_place = place;
+        type1 = "i1";
     }
-    return first;
+    return {code, left_place, type1};
 }
 
 toString(Equality){
@@ -413,19 +477,25 @@ toString(Equality){
     return result;
 }
 
-genExpr(Equality){
-    Value first = compare->genExpr(symbol);
+genCode(Equality){
+    auto [left_code, left_place, type1] = compare->genCode();
+    std::string code = left_code;
 
     for(auto &p : rest){
-        Value second = p.second->genExpr(symbol);
+        auto [right_code, right_place, type2] = p.second->genCode();
+        std::string place = newTemp();
+        code += right_code + " " + place ;
 
         if(p.first == "=="){
-            first = builder.CreateICmpEQ(first, second, "eqtmp");
+            code += " = icmp eq i64 ";
         }else if(p.first == "!="){
-            first = builder.CreateICmpNE(first, second, "netmp");
+            code +=  " = icmp ne i64 ";
         }
+        code += left_place + ", " + right_place +"\n";
+        left_place = place;
+        type1 = "i1";
     }
-    return first;
+    return {code, left_place, type1};
 }
 
 toString(Comparison){
@@ -436,22 +506,30 @@ toString(Comparison){
     return result;
 }
 
-genExpr(Comparison){
-    Value first = term->genExpr(symbol);
+genCode(Comparison){
+    auto [left_code, left_place, type1] = term->genCode();
+    std::string code = left_code;
     for(auto &p : rest){
-        Value second = p.second->genExpr(symbol);
+        auto [right_code, right_place, type2] = p.second->genCode();
+        std::string place = newTemp();
+        code += right_code + " " + place;
+
         if(p.first == "<"){
-            first = builder.CreateICmpSLT(first, second, "slttmp");
+            code += " = icmp slt i64 " ;
         }else if(p.first == "<="){
-            first = builder.CreateICmpSLE(first, second, "sletmp");
+           code += " = icmp sle i64 " ;
         }else if(p.first == ">"){
-            first = builder.CreateICmpSGT(first, second, "sgttmp");
+            code += " = icmp sgt i64 ";
         }else if(p.first == ">="){
-            first = builder.CreateICmpSGE(first, second, "sgetmp");
+            code += " = icmp sge i64 ";
         }
+
+        code += left_place + ", " + right_place;
+        left_place = place;
+        type1 = "i1";
     }
 
-    return first;
+    return {code, left_place, type1};
 }
 
 toString(Term){
@@ -462,19 +540,26 @@ toString(Term){
     return result;
 }
 
-genExpr(Term){
-    Value first = fact->genExpr(symbol);
+genCode(Term){
+    auto [left_code, left_place, type1] = fact->genCode();
+    std::string code = left_code;
 
     for(auto &p : rest){
-        Value second = p.second->genExpr(symbol);
+        auto [right_code, right_place, type2]  = p.second->genCode();
+        std::string place = newTemp();
+        code += right_code + " " + place ;
 
         if(p.first == "+"){
-           first = builder.CreateAdd(first, second, "addtmp");
+           code += " = add i64 " ;
         }else if (p.first == "-"){
-            first = builder.CreateSub(first,second, "subtmp");
+            code += " = sub i64 " ;
         }
+
+        code += left_place + ", " + right_place;
+        left_place = place;
+        type1 = type2;
     }
-    return first;
+    return {code, left_place, type1};
 }
 
 toString(Factor){
@@ -485,21 +570,28 @@ toString(Factor){
     return result;
 }
 
-genExpr(Factor){
-    Value first = unar->genExpr(symbol);
+genCode(Factor){
+    auto [left_code, left_place, type1] = unar->genCode();
+    std::string code = left_code;
     for(auto &p : rest){
-        Value second = p.second->genExpr(symbol);
+        auto [right_code, right_place, type2] = p.second->genCode();
+        std::string place = newTemp();
+        code += right_code + " " + place;
 
         if(p.first == "*"){
-            first = builder.CreateMul(first, second, "multmp");
+            code += " = mul i64 " ;
         }else if (p.first == "/"){
-            first = builder.CreateSDiv(first, second, "divtmp");
+            code += " = sdiv i64 " ;
         }else if (p.first == "%"){
-            first = builder.CreateSRem(first, second, "modtmp");
+           code += " = srem i64 " ;
         }
+
+        code += left_place + ", " + right_place;
+        left_place = place;
+        type1 = type2;
     }
 
-    return first;
+    return {code, left_place, type1};
 }
 
 toString(Unary){
@@ -514,20 +606,26 @@ toString(Unary){
     return result;
 }
 
-genExpr(Unary){
-    Value first;
+genCode(Unary){
     if(childPrimary){
-        first = childPrimary->genExpr(symbol);
-    }else if( childUnary){
-        first = childUnary->genExpr(symbol);
-        if(op == "-"){
-            first = builder.CreateNeg(first, "negtmp");
-        }else if(op == "!"){
-            first = builder.CreateNot(first, "nottmp");
-        }
+        return childPrimary->genCode();
     }
 
-    return first;
+    if(childUnary){
+        auto [codeC, placeC, typeC] = childUnary->genCode();
+        std::string code = codeC;
+        std::string place = newTemp();
+
+        if(op == "-"){
+            code += "  " + place + " = sub i64 0, " + placeC + "\n";
+            typeC = "i64";
+        }else if(op == "!"){
+            code += "  " + place + " = xor i1 " + placeC + ", true\n";
+            typeC = "i1";
+        }
+        
+        return {code, place, typeC};
+    }
 }
 
 toString(FuncCall){
@@ -537,14 +635,28 @@ toString(FuncCall){
     return result;
 }
 
-genExpr(FuncCall){
-    Value first = ident->genExpr(symbol);
+genCode(FuncCall){
+    std::string funcName = ident->toString();
+    std::string code = "";
+    std::string args = "";
+    std::string place;
+    std::string type = symbol[funcName].type;
+
     if(arg){
-        first = builder.CreateCall(first, llvm::ConstantArrayRef::get(context, arg), "functmp");
-    }else{
-        first = builder.CreateCall(first, nullptr, "functmp");
+        auto [codeA, placeA, typeA] = arg->genCode();
+        code += codeA;
+        args += placeA;  
     }
-    return first;
+
+    if(type == "void"){
+        code += "call void @" + funcName + "(" + args + ")\n";
+        place = "";
+    }else if(type == "i64"){
+        place = newTemp();
+        code += place + " = call i64 @" + funcName + "(" + args + ")\n";
+    }
+
+    return {code, place};
 }
 
 toString(ArgList){
@@ -560,14 +672,20 @@ toString(ArgList){
     return result;
 }
 
-genExpr(ArgList){
-    std::vector<Value> args;
+genCode(ArgList){
+    std::string result;
+    std::string place;
+    
+    for (auto it = arg.begin(); it != arg.end(); ++it) {
+        auto [codeC, placeC, typeC] = (*it)->genCode();
+        result += codeC + "\n";
+        place += typeC + " " +placeC;
 
-    for(auto a: arg){
-        args.push_back(a->genExpr(symbol));
+        if (std::next(it) != arg.end()) {
+            place += ", ";
+        }
     }
-
-    return args;
+    return {result, place};
 }
 
 toString(NumberExpr){
@@ -585,32 +703,40 @@ toString(Primary){
     if(paren) return paren->toString();
 }
 
-genExpr(Primary){
-    Value val;
+genCode(Primary){
 
-    if(num) val = num->genExpr(symbol);
-    if(ident) val = ident->genExpr(symbol);
-    if(func) val = func->genExpr(symbol);
-    if(paren) val = paren->genExpr(symbol);
-
-    return val;
+    if(num) return num->genCode();
+    if(ident) return ident->genCode();
+    if(func) return func->genCode();
+    if(paren) return paren->genCode();
 }
 
 toString(ParenExpr){
     return "(" + expr->toString() +")";
 }
 
-genExpr(ParenExpr){
-    Value first = expr->genExpr(symbol);
-    return first;
+genCode(ParenExpr){
+    return expr->genCode();
 }
 
-genExpr(NumberExpr){
-    return llvm::ConstantInt::get(llvm::Type::getInt64Ty(context), value, true);
+genCode(NumberExpr){
+    return {"", std::to_string(value), "i64"};
 }
 
-genExpr(IdentifierExpr){
-    Value ptr = (*symbol)[name];
-    Value val = builder.CreateLoad(llvm::Type::getInt64Ty(context), ptr);
-    return val;
+genCode(IdentifierExpr){
+    std::string place = newTemp();
+     std::string code ;
+    
+    if (symbol.find(name) == symbol.end()) {
+        return CodeGen("; ERROR: Variable: " + name + " no ha sido declarada\n", "0", "i64");
+    }
+
+    std::string varPlace = symbol[name].code;
+
+    if(symbol[name].type == "i64"){
+        code += place + " = load i64, i64* " + varPlace + "\n";
+        return {code, place, "i64"};
+    } else if(symbol[name].type == "i64*"){
+        return {"", varPlace, "i64"};
+    }
 }

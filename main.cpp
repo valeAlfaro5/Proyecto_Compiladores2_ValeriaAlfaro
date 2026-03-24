@@ -1,14 +1,15 @@
 #include <iostream>
 #include <fstream>
-#include "Lexer.hpp"    
+#include "Lexer.hpp" 
+#include "CodeGen.hpp"   
 #include "Parser.hpp"   
 #include "Ast.hpp"
 
 int main(int argc, char* argv[]) {
 
-    //verificar que tenga archivo
-    if (argc <2){
-        std::cerr << "Usage: " << argv[0] << " <input_file>\n";
+    // verificar argumentos
+    if (argc < 3){
+        std::cerr << "Usage: " << argv[0] << " <input_file> <output.ll>\n";
         return 1;
     }
     
@@ -19,22 +20,35 @@ int main(int argc, char* argv[]) {
     } 
 
     Proyect::ProyectoLexer my_lexer(&inputFile);
-    //instanciar root primero porque el parser lo necesita 
+
+    // root del AST
     AstNode* root = nullptr;
     Proyect::Parser my_parser(my_lexer, root);
 
     try{
         my_parser();
-        //validar que root tenga algo
+
         if (root) {
-            std::cout << "De txt a AST: " << root->toString() << std::endl;
-            std::cout<<"Syntax correct\n";
+            std::cout << "De txt a AST:\n" << root->toString() << std::endl;
+            std::cout << "Syntax correct\n";
+
+            std::string llvmCode = root->genCode().code; 
+
+            std::ofstream outputFile(argv[2]);
+            if (!outputFile.is_open()) {
+                std::cerr << "Error creando archivo de salida\n";
+                return 1;
+            }
+
+            outputFile << llvmCode;
+            outputFile.close();
+
+            std::cout << "Archivo LLVM generado en: " << argv[2] << "\n";
         }
        
     }catch(const Proyect::Parser::syntax_error& e){
-        std::cerr << "Error de sintaxis: " << e.what() << "\n";
+        std::cerr << "Error de sintaxis: " << e.what() <<  "\n";
     }
 
     return 0;
 }
-

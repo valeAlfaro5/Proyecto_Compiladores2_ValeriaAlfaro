@@ -19,6 +19,8 @@ set (PARSER_CPP_SOURCE Parser.cpp)
 set (PARSER_CPP_HEADER Parser.hpp)
 set (AST_CPP_SOURCE Ast.cpp)
 set (AST_CPP_HEADER Ast.hpp)
+set (CODEGEN_CPP_SOURCE CodeGen.cpp)
+set (CODEGEN_CPP_HEADER CodeGen.hpp)
 
 message(STATUS "Reflex version: ${REFLEX_VERSION}")
 message(STATUS "Bison version: ${BISON_VERSION}")
@@ -40,7 +42,7 @@ add_custom_command(
     DEPENDS ${CMAKE_SOURCE_DIR}/Ast.tc
 )
 
-add_executable(${PROJECT_NAME} main.cpp ${LEXER_CPP_SOURCE} ${LEXER_CPP_HEADER} ${PARSER_CPP_SOURCE} ${PARSER_CPP_HEADER} ${AST_CPP_SOURCE} ${AST_CPP_HEADER})
+add_executable(${PROJECT_NAME} main.cpp ${LEXER_CPP_SOURCE} ${LEXER_CPP_HEADER} ${PARSER_CPP_SOURCE} ${PARSER_CPP_HEADER} ${AST_CPP_SOURCE} ${AST_CPP_HEADER} ${CODEGEN_CPP_SOURCE} ${CODEGEN_CPP_HEADER})
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR})

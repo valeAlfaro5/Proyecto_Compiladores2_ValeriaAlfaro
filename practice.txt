@@ -1,32 +1,74 @@
-int x;
-int y = 10;
-
 def suma(int a, int b) -> int {
-    int resultado;
-    resultado = (a + b);
-    return resultado;
+    int r = a + b;
+    return(r);
 }
 
-def incrementar(int ref n) -> void {
-    n = n + 1;
+def esMayor(int a, int b) -> int {
+    int res = a > b;
+    return(res);
+}
+
+def printSuma(int a, int b) -> void {
+    int c = a + b;
+    print(c);
     return;
 }
 
-def main() -> int {
-    int z;
-    z = suma(3, 4);
+def testAST() -> void {
+    int x = 10;
+    int y = 3;
+    int z = 0;
 
-    if (z > 5) {
-        print(z);
+    // ===== ARITMÉTICOS =====
+    z = x + y;
+    print(z);
+
+    z = x - y;
+    print(z);
+
+    z = x * y;
+    print(z);
+
+    z = x / y;
+    print(z);
+
+    z = x % y;
+    print(z);
+
+    // ===== COMPARACIONES =====
+    print(x == y);
+    print(x != y);
+    print(x < y);
+    print(x <= y);
+    print(x > y);
+    print(x >= y);
+
+    // ===== LÓGICOS =====
+    print((x > y) && (y > 0));
+    print((x < y) || (y > 0));
+    print(!(x == y));
+
+    // ===== IF / ELSE =====
+    if (x > y) {
+        print(x);
     } else {
-        print(-10);
+        print(y);
     }
 
-    while (z < 10) {
-        z = z + 1;
+    // ===== WHILE =====
+    int i = 0;
+    while (i < 5) {
+        print(i);
+        i = i + 1;
     }
 
-    incrementar(z);//ignora
+    // ===== FUNCIONES =====
+    z = suma(x, y);     // func con return
+    print(z);
 
-    return z;
+    printSuma(x, y);    // func void
+
+    print(esMayor(x, y));  // func dentro de print
+
+    return;
 }
